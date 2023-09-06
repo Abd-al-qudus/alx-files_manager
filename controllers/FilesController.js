@@ -5,6 +5,29 @@ const fs = require('fs');
 const dbClient = require('../utils/db');
 const redisClient = require('../utils/redis');
 
+const isValidId = (id) => {
+  const size = 24;
+  let i = 0;
+  const charRanges = [
+    [48, 57], // 0 - 9
+    [97, 102], // a - f
+    [65, 70], // A - F
+  ];
+  if (typeof id !== 'string' || id.length !== size) {
+    return false;
+  }
+  while (i < size) {
+    const c = id[i];
+    const code = c.charCodeAt(0);
+
+    if (!charRanges.some((range) => code >= range[0] && code <= range[1])) {
+      return false;
+    }
+    i += 1;
+  }
+  return true;
+};
+
 class FilesController {
   static async postUpload(request, response) {
     const token = request.header('X-Token');
@@ -80,6 +103,71 @@ class FilesController {
 
     return response.status(201).json(orderedObject);
   }
+
+  static async getShow(req, res){
+    const { user } = req;
+    const id = req.params ? req.params.id : null;
+    const userId = user._id.toString();
+    const file = await (await dbClient.filesCollection())
+    .findOne({
+      _id: new mongoDBCore.BSON.ObjectId(isValidId(id) ? id : null),
+      userId: new mongoDBCore.BSON.ObjectId(isValidId(userId) ? userId : null)
+    });
+
+    if (!file){
+      res.status(404).json({ error: 'Not Found'});
+    }
+    res.status(200).json({
+      id,
+      userId,
+      name: file.name,
+      type: file.type,
+      isPublic: file.isPublic,
+      parentId: file.parentId === '0' ? 0 : file.parentId.toString()
+    });
+  }
+
+  /**
+   * @param: getIndex
+   */
+  static async getIndex(req, res) {
+    const { user } = req;
+    const parentId = req.query.parentId || '0';
+    const page = /\d+/.test((req.query.page || '').toString())
+    ? Number.parseInt(req.query.page, 10)
+    : 0;
+
+    const filesFilter = {
+      userId: user._id,
+      parentId: parentId === '0' ? parentId
+      : new mongoDBCore.BSON.ObjectId(isValidId(parentId) ? parentId : null )
+
+    };
+
+    const files = await (await (await dbClient.filesCollection())
+    .aggregate([
+      { $match: filesFilter },
+      { $sort: { _id: -1 } },
+      { $skip: page * 20 },
+      { $limit: 20 },
+      {
+        $project: {
+          _id: 0,
+          id: '$_id',
+          userId: '$userId',
+          name: '$name',
+          type: '$type',
+          isPublic: '$isPublic',
+          parentId: {
+            $cond: { if: { $eq: ['$parentId', '0'] }, then: 0, else: '$parentId' },
+          },
+        },
+      },
+    ])).toArray();
+
+    res.status(200).json(files);
+  }
+
 }
 
 module.exports = FilesController;
