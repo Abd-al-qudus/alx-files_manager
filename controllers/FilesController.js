@@ -82,75 +82,30 @@ class FilesController {
     return response.status(201).json(orderedObject);
   }
 
-  static async getShow(req, res) {
+  static async getShow(req, res){
     try {
-      const token = request.header("X-Token");
-      if (!token) {
-        return response.status(401).json({ error: "Unauthorized" });
-      }
-
-      const key = `auth_${token}`;
-      const user = await redisClient.get(key);
-
+      const user = req.user;
       if (!user) {
-        return response.status(401).json({ error: "Unauthorized" });
+        console.log(user)
+        return res.status(401).json({ error: 'Unauthorized' });
       }
 
       const fileId = req.params.id;
-
-      if (!fileId) {
-        return res.status(404).json({ error: "Not found" });
+      const file = await dbClient.findOne({ _id: fileId, userId: user._id });
+      if (!file) {
+        return res.status(404).json({ error: 'Not found' });
       }
-
-      return res.json(fileId);
-    } catch (err) {
-      console.log(err);
-      return res.status(500).json({ error: "Internal Server Error" });
+      return res.status(200).json(file);
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ error: 'Internal Server Error' });
     }
   }
 
-  static async getIndex(req, res) {
-    try {
-      const token = request.header("X-Token");
-      if (!token) {
-        return response.status(401).json({ error: "Unauthorized" });
-      }
+  static async getIndex(req, res){
 
-      const key = `auth_${token}`;
-      const user = await redisClient.get(key);
-
-      if (!user) {
-        return response.status(401).json({ error: "Unauthorized" });
-      }
-
-      const parentId = req.query.parentId || 0;
-      const page = parseInt(req.query.page) || 0;
-      const pageMax = 20;
-
-      const pageLine = [
-        {
-          $match: {
-            userId: user._id,
-            parentId: parentId,
-          },
-        },
-        {
-          $skip: page * pageMax,
-        },
-        {
-          $limit: pageMax,
-        },
-      ];
-
-      const files = await File.aggregate(pageLine);
-      return res.json(files);
-    } catch (err) {
-      console.log(err);
-      return res.status(500).json({
-        error: "Internal Server Error",
-      });
-    }
   }
+ 
 }
 
 module.exports = FilesController;
