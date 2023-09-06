@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const dbClient = require("../utils/db");
 const redisClient = require("../utils/redis");
+const { use } = require("chai");
 
 class FilesController {
   static async postUpload(request, response) {
@@ -83,26 +84,53 @@ class FilesController {
   }
 
   static async getShow(req, res){
-    try {
-      const user = req.user;
+   
+      const {user} = req;
+      const fileId = req.params ? req.params.id : null
+      
+
       if (!user) {
         console.log(user)
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const fileId = req.params.id;
-      const file = await dbClient.findOne({ _id: fileId, userId: user._id });
+      const file = await dbClient.collection('files').findOne({ _id: fileId, userId: user._id });
       if (!file) {
         return res.status(404).json({ error: 'Not found' });
       }
       return res.status(200).json(file);
-    } catch (error) {
-      console.error(error);
-      return res.status(500).json({ error: 'Internal Server Error' });
-    }
+    
   }
 
   static async getIndex(req, res){
+    const {user} = req
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const parentId = req.query.parentId || 0;
+    const page = parseInt(req.query.page)  || 0;
+    const maxPage = 20;
+
+    const pagePipe = [
+      {
+        $match: {
+          userId: user._id,
+          parentId: parentId,
+        },
+      },
+      {
+        $skip: page * maxPage,
+      },
+      {
+        $limit: maxPage,
+      },
+    ];
+
+    const files = await dbClient.collection('files').aggregate(pagePipe).toArray();
+
+      
+      return res.json(files);
 
   }
  
