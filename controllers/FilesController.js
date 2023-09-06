@@ -84,10 +84,16 @@ class FilesController {
 
   static async getShow(req, res) {
     try {
-      const user = req.user;
+      const token = request.header("X-Token");
+      if (!token) {
+        return response.status(401).json({ error: "Unauthorized" });
+      }
+
+      const key = `auth_${token}`;
+      const user = await redisClient.get(key);
 
       if (!user) {
-        return res.status(401).json({ error: "Unauthorized" });
+        return response.status(401).json({ error: "Unauthorized" });
       }
 
       const fileId = req.params.id;
@@ -105,10 +111,16 @@ class FilesController {
 
   static async getIndex(req, res) {
     try {
-      const user = req.user;
+      const token = request.header("X-Token");
+      if (!token) {
+        return response.status(401).json({ error: "Unauthorized" });
+      }
+
+      const key = `auth_${token}`;
+      const user = await redisClient.get(key);
 
       if (!user) {
-        return res.status(401).json({ error: "Unauthorized" });
+        return response.status(401).json({ error: "Unauthorized" });
       }
 
       const parentId = req.query.parentId || 0;
